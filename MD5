@@ -1,0 +1,13 @@
+128c3b66c73207476cd9890c3630b542 *DESCRIPTION
+19379fcf752fe9be4ec6dffad193a647 *LICENSE
+217e58e325720b8ebcb7fc0ff21d629f *NAMESPACE
+5394f2369924c12cd5d2294c73c8ff0c *R/XWFpValues.R
+b92d63be93676cf4fe39192705d7154f *R/default_psi.R
+83b6930483cf07f411980de5179e8f59 *R/xwf.R
+587eaf344c7f42543f3e995f57e9622c *R/xwfGAM.R
+ac272e10dfad15b7d594f43d4520eacc *R/xwfGridsearch.R
+76c8c2e31e64df98dc7d252fc2018dbf *man/XWFpValues.Rd
+cf54b886c43bbf7d06a921d1e6193daa *man/default_psi.Rd
+7eb3bfcfc6ccaa4d83ae5e5e7b00ca8b *man/xwf.Rd
+a7ae87d77d42ef223f56c663c5fdb15e *man/xwfGAM.Rd
+e4cbd936cbcb6498ccdb8b0dffc63e84 *man/xwfGridsearch.Rd
