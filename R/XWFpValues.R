@@ -7,7 +7,9 @@
 #' @param t Matrix containing the times at which the functions xx were measured: Element (i,j) contains the time of the j-th measurement of the i-th function.
 #' @param n.i Vector containing the number of measurements for each function. The first n.i[i] elements of the i-th row of t should not be NA.
 #' @param psi.list List of predefined local features which are functions of a function (first argument) and a measurement time (second argument)
-#' @param F CDF of the values of the functions xx
+#' @param F CDF of the values of the functions xx. Ignored if weighting function w is not the default.
+#' @param z Optional matrix with covariates to be included as linear predictors in the generalized additive model
+#' @param w Weighting function. The default is the one used in the original paper. See the default for what the roles of its 3 arguments are.
 #' @param n.boot Number for randomizations used to obtain the p-values. The resolution of the p-values is 1/n.boot
 #' @param progressbar Boolean specifying whether a progress bar indicating which randomizations have been completed should be displayed.
 #' 
@@ -68,7 +70,7 @@
 #'   function(x, t) abs(x(t)-x(t-1))
 #' )
 #' 
-#' XWFresult <- xwfGridsearch(y = y, xx = xx, t = t, n.i = n.i, psi.list = psi, F = F)
+#' XWFresult <- xwfGridsearch(y = y, xx = xx, t = t, n.i = n.i, psi.list = psi, F = F, z = z)
 #' 
 #' \donttest{XWFpValues(
 #' GAMobject = XWFresult$GAMobject,
@@ -77,14 +79,14 @@
 #' n.i = n.i,
 #' psi.list = psi,
 #' F = F,
+#' z = z,
 #' n.boot = 3
 #' )}
 #' 
 #' @importFrom utils txtProgressBar setTxtProgressBar
 #' 
 #' @export
-XWFpValues <- function(GAMobject, xx, t, n.i, F, psi.list = NULL, n.boot = 100, progressbar = TRUE) {
-  if(!is.function(F)) stop("marginal CDF 'F' is not specified as a function")
+XWFpValues <- function(GAMobject, xx, t, n.i, psi.list = NULL, F, z = NULL, w = function(t, i, b, left) ifelse(left, min(1, (1-F(xx[[i]](t)))/(1-b)), min(1, F(xx[[i]](t))/b)), n.boot = 100, progressbar = TRUE) {
   
   if(is.null(psi.list)) {
     warning("'psi.list' is not specified. Therefore using default.psi(). Make sure psi.list are the same as used to obtain 'GAMobject' for the p-valus to be correct.")
@@ -100,9 +102,17 @@ XWFpValues <- function(GAMobject, xx, t, n.i, F, psi.list = NULL, n.boot = 100, 
   for(s in 1:n.boot) {
     
     # We simply randomize y to get bootstrap samples
-    temp <- xwfGridsearch(y = sample(y), xx = xx, t = t, n.i = n.i, psi.list = psi.list, F = F, progressbar = FALSE)$GAMobject
-    temp <- c(summary(temp)$p.pv, summary(temp)$s.pv)
-    if(n.p == length(temp)) pValMat[s, ] <- temp # This check on 'temp' is here to ensure 'xwfGridsearch did not accidentially return NA
+    temp <- tryCatch(
+      xwfGridsearch(y = sample(y), xx = xx, t = t, n.i = n.i, psi.list = psi.list, F = F, z = z, w = w, progressbar = FALSE)$GAMobject,
+      error = function(e) {
+        cat("ERROR :",conditionMessage(e), "\n")
+        return(NA)
+      }
+    )
+    if(!is.na(temp)) {
+      temp <- c(summary(temp)$p.pv, summary(temp)$s.pv)
+      if(n.p == length(temp)) pValMat[s, ] <- temp # This check on 'temp' is here to ensure 'xwfGridsearch did not accidentially return NA
+    }
     
     if(progressbar) setTxtProgressBar(pb, s)
   }
@@ -115,7 +125,7 @@ XWFpValues <- function(GAMobject, xx, t, n.i, F, psi.list = NULL, n.boot = 100, 
   temp.p <- c(summary(GAMobject)$p.pv, summary(GAMobject)$s.pv)
   for(s in 1:n.p) {
     temp <- temp.p[s] >= pValMat[, s]
-    pValues[s] <- (sum(temp, na.rm = TRUE)+1)/sum(!is.na(temp))
+    pValues[s] <- (1+sum(temp, na.rm = TRUE))/(1+sum(!is.na(temp)))
   }
   
   return(pValues)

@@ -4,8 +4,10 @@
 \alias{xwf}
 \title{Compute XWFs}
 \usage{
-xwf(xx, t, n.i, psi, b = 0.5, F, t.min = NULL, t.max = NULL,
-  t.range = NULL, rel.shift = 0.001, left = TRUE)
+xwf(xx, t, n.i, psi, w = function(t, i) ifelse(left, min(1, (1 -
+  F(xx[[i]](t)))/(1 - b)), min(1, F(xx[[i]](t))/b)), b = 0.5, F = NULL,
+  t.min = NULL, t.max = NULL, t.range = NULL, rel.shift = 0.001,
+  left = TRUE)
 }
 \arguments{
 \item{xx}{List of function for which to compute the XWFs}
@@ -16,9 +18,11 @@ xwf(xx, t, n.i, psi, b = 0.5, F, t.min = NULL, t.max = NULL,
 
 \item{psi}{Predefined local feature which is a function of a function (first argument) and a measurement time (second argument)}
 
-\item{b}{Parameter of the weighting function. See original paper for details.}
+\item{w}{Weighting function. The default is the one used in the original paper.}
 
-\item{F}{CDF of the values of the functions xx}
+\item{b}{Parameter of the weighting function. See original paper for details. Ignored if weighting function w is not the default.}
+
+\item{F}{CDF of the values of the functions xx. Ignored if weighting function w is not the default.}
 
 \item{t.min}{Vector with time of first measurement for each function. Computed from t if omitted but providing it saves computational cost.}
 
@@ -28,7 +32,7 @@ xwf(xx, t, n.i, psi, b = 0.5, F, t.min = NULL, t.max = NULL,
 
 \item{rel.shift}{Optional relative reduction of the integration range to avoid instabilities at the end of the integration ranges. Set to 0 if no such correction is desired.}
 
-\item{left}{Boolean specifying whether the left (TRUE) or right (FALSE) extrema-weighted features should be computed: Left and right refer to the weighting function.}
+\item{left}{Boolean specifying whether the left (TRUE) or right (FALSE) extrema-weighted features should be computed: Left and right refer to the weighting function. Ignored if weighting function w is not the default.}
 }
 \value{
 Vector containing the extrema-weighted features obtained by numerical integration for each of the functions.

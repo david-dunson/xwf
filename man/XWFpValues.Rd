@@ -4,8 +4,9 @@
 \alias{XWFpValues}
 \title{p-value computation for XWFs}
 \usage{
-XWFpValues(GAMobject, xx, t, n.i, F, psi.list = NULL, n.boot = 100,
-  progressbar = TRUE)
+XWFpValues(GAMobject, xx, t, n.i, psi.list = NULL, F, z = NULL,
+  w = function(t, i, b, left) ifelse(left, min(1, (1 - F(xx[[i]](t)))/(1 -
+  b)), min(1, F(xx[[i]](t))/b)), n.boot = 100, progressbar = TRUE)
 }
 \arguments{
 \item{GAMobject}{The GAMobject returned by \code{\link{xwfGridsearch}}}
@@ -16,9 +17,13 @@ XWFpValues(GAMobject, xx, t, n.i, F, psi.list = NULL, n.boot = 100,
 
 \item{n.i}{Vector containing the number of measurements for each function. The first n.i[i] elements of the i-th row of t should not be NA.}
 
-\item{F}{CDF of the values of the functions xx}
-
 \item{psi.list}{List of predefined local features which are functions of a function (first argument) and a measurement time (second argument)}
+
+\item{F}{CDF of the values of the functions xx. Ignored if weighting function w is not the default.}
+
+\item{z}{Optional matrix with covariates to be included as linear predictors in the generalized additive model}
+
+\item{w}{Weighting function. The default is the one used in the original paper. See the default for what the roles of its 3 arguments are.}
 
 \item{n.boot}{Number for randomizations used to obtain the p-values. The resolution of the p-values is 1/n.boot}
 
@@ -85,7 +90,7 @@ psi <- list(
   function(x, t) abs(x(t)-x(t-1))
 )
 
-XWFresult <- xwfGridsearch(y = y, xx = xx, t = t, n.i = n.i, psi.list = psi, F = F)
+XWFresult <- xwfGridsearch(y = y, xx = xx, t = t, n.i = n.i, psi.list = psi, F = F, z = z)
 
 \donttest{XWFpValues(
 GAMobject = XWFresult$GAMobject,
@@ -94,6 +99,7 @@ t = t,
 n.i = n.i,
 psi.list = psi,
 F = F,
+z = z,
 n.boot = 3
 )}
 

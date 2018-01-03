@@ -3,12 +3,13 @@
 #' Adaptive grid search to optimize the weighting functions in the extrema-weighted features.
 #' 
 #' @param y Vector with binary outcomes data
-#' @param xx List of function for which to compute the XWFs
+#' @param xx List of functions for which to compute the XWFs
 #' @param t Matrix containing the times at which the functions xx were measured: Element (i,j) contains the time of the j-th measurement of the i-th function.
 #' @param n.i Vector containing the number of measurements for each function. The first n.i[i] elements of the i-th row of t should not be NA.
 #' @param psi.list List of predefined local features which are functions of a function (first argument) and a measurement time (second argument)
-#' @param F CDF of the values of the functions xx
+#' @param F CDF of the values of the functions xx. Ignored if weighting function w is not the default.
 #' @param z Optional matrix with covariates to be included as linear predictors in the generalized additive model
+#' @param w Weighting function. The default is the one used in the original paper. See the default for what the roles of its 3 arguments are.
 #' @param iter Number of levels in the adaptive grid search. The resolution in b obtained is 2^{-1-iter}.
 #' @param rel.shift Optional relative reduction of the integration range to avoid instabilities at the end of the integration ranges. Set to 0 if no such correction is desired.
 #' @param progressbar Boolean specifying whether a progress bar indicating what level of the adaptive grid has been completed should be displayed.
@@ -70,22 +71,20 @@
 #'   function(x, t) abs(x(t)-x(t-1))
 #' )
 #' 
-#' XWFresult <- xwfGridsearch(y = y, xx = xx, t = t, n.i = n.i, psi.list = psi, F = F)
+#' XWFresult <- xwfGridsearch(y = y, xx = xx, t = t, n.i = n.i, psi.list = psi, F = F, z = z)
 #' 
 #' summary(XWFresult$GAMobject)
 #' XWFresult$b.left
 #' XWFresult$b.right
 #' 
-#' @importFrom stats logLik
 #' 
 #' @importFrom utils txtProgressBar setTxtProgressBar
 #' 
 #' @export
 xwfGridsearch <-
-function(y, xx, t, n.i, psi.list = default_psi(), F, z = NULL, iter = 3, rel.shift = .001, progressbar = TRUE) {
+function(y, xx, t, n.i, psi.list = default_psi(), F = NULL, z = NULL, iter = 3, w = function(t, i, b, left) ifelse(left, min(1, (1-F(xx[[i]](t)))/(1-b)), min(1, F(xx[[i]](t))/b)), rel.shift = .001, progressbar = TRUE) {
 # Function that finds the optimal weighting functions via an adaptive grid search
-  
-if(!is.function(F)) stop("marginal CDF 'F' is not specified as a function")
+
 if(!is.function(psi.list[[1]])) stop("local feature 'psi.list' is not specified as a list of functions")
 if(!is.function(xx[[1]])) stop("trajectories 'xx' is not specified as a list of functions")
 
@@ -114,7 +113,7 @@ findXWFl <- function(p, b) {
   
   countL <<- countL+1
   XWFmatL[countL, 1:2] <<- c(p, b)
-  XWFmatL[countL, -(1:2)] <<- xwf(xx = xx, t = t, n.i = n.i, psi = psi.list[[p]], b = b, F = F, t.min = t.min, t.max = t.max, t.range = t.range, left = TRUE)
+  XWFmatL[countL, -(1:2)] <<- xwf(xx = xx, t = t, n.i = n.i, psi = psi.list[[p]], w = function(t, i) w(t, i, b = b, left = TRUE), t.min = t.min, t.max = t.max, t.range = t.range)
   return(XWFmatL[countL, -(1:2)])
 }
 
@@ -124,8 +123,8 @@ findXWFr <- function(p, b) {
   
   countR <<- countR+1
   XWFmatR[countR, 1:2] <<- c(p, b)
-  XWFmatR[countR, -(1:2)] <<- xwf(xx = xx, t = t, n.i = n.i, psi = psi.list[[p]], b = b, F = F, t.min = t.min, t.max = t.max, t.range = t.range, left = FALSE)
-  return(XWFmatL[countL, -(1:2)])
+  XWFmatR[countR, -(1:2)] <<- xwf(xx = xx, t = t, n.i = n.i, psi = psi.list[[p]], w = function(t, i) w(t, i, b = b, left = FALSE), t.min = t.min, t.max = t.max, t.range = t.range)
+  return(XWFmatR[countR, -(1:2)])
 }
 
 
@@ -138,8 +137,9 @@ for(pp in 1:p) {
   wR[, pp] <- findXWFr(p = pp, b = .75)
 }
 
-# Compute coresponding log-likelihood
-LL <- logLik(modelfit <- xwfGAM(wL = wL, wR = wR, y = y, z = z))
+# Compute coresponding GAM UBRE score
+modelfit <- xwfGAM(wL = wL, wR = wR, y = y, z = z)
+score <- modelfit$gcv.ubre
 
 # Intialize weight function parameters (what we're trying to optimize)
 left <- rep(.25, p)
@@ -157,23 +157,37 @@ for(s in 1:iter) {
     # First, the left XWF
     wLl <- wL
     wLl[, pp] <- findXWFl(p = pp, b = left[pp] - grid.width)
-    LLl <- logLik(modelfit.l <- xwfGAM(wL = wLl, wR = wR, y = y, z = z))
+    modelfit.l <- tryCatch(
+      xwfGAM(wL = wLl, wR = wR, y = y, z = z),
+      error = function(e) {
+        cat("ERROR :",conditionMessage(e), "\n")
+        return(modelfit)
+      }
+    )
+    score.l <- modelfit.l$gcv.ubre
     
     wLr <- wL
     wLr[, pp] <- findXWFl(p = pp, b = left[pp] + grid.width)
-    LLr <- logLik(modelfit.r <- xwfGAM(wL = wLr, wR = wR, y = y, z = z))
+    modelfit.r <- tryCatch(
+      xwfGAM(wL = wLr, wR = wR, y = y, z = z),
+      error = function(e) {
+        cat("ERROR :",conditionMessage(e), "\n")
+        return(modelfit)
+      }
+    )
+    score.r <- modelfit.l$gcv.ubre
     
-    temp <- which.max(c(LLl, LLr, LL))
+    temp <- which.max(c(score.l, score.r, score))
     
     if(temp == 1) {
       left[pp] <- left[pp] - grid.width/2
       wL <- wLl
-      LL <- LLl
+      score <- score.l
       modelfit <- modelfit.l
     } else if(temp == 2) {
       left[pp] <- left[pp] + grid.width/2
       wL <- wLr
-      LL <- LLr
+      score <- score.r
       modelfit <- modelfit.r
     }
     
@@ -181,23 +195,37 @@ for(s in 1:iter) {
     # Second, the right XWF
     wRl <- wR
     wRl[, pp] <- findXWFr(p = pp, b = right[pp] - grid.width)
-    LLl <- logLik(modelfit.l <- xwfGAM(wL = wL, wR = wRl, y = y, z = z))
+    modelfit.l <- tryCatch(
+      xwfGAM(wL = wL, wR = wRl, y = y, z = z),
+      error = function(e) {
+        cat("ERROR :",conditionMessage(e), "\n")
+        return(modelfit)
+      }
+    )
+    score.l <- modelfit.l$gcv.ubre
     
     wRr <- wR
     wRr[, pp] <- findXWFr(p = pp, b = right[pp] + grid.width)
-    LLr <- logLik(modelfit.r <- xwfGAM(wL = wL, wR = wRr, y = y, z = z))
+    modelfit.r <- tryCatch(
+      xwfGAM(wL = wL, wR = wRr, y = y, z = z),
+      error = function(e) {
+        cat("ERROR :",conditionMessage(e), "\n")
+        return(modelfit)
+      }
+    )
+    score.r <- modelfit.r$gcv.ubre
     
-    temp <- which.max(c(LLl, LLr, LL))
+    temp <- which.max(c(score.l, score.r, score))
     
     if(temp == 1) {
       right[pp] <- right[pp] - grid.width/2
       wR <- wRl
-      LL <- LLl
+      score <- score.l
       modelfit <- modelfit.l
     } else if(temp == 2) {
       right[pp] <- right[pp] + grid.width/2
       wR <- wRr
-      LL <- LLr
+      score <- score.r
       modelfit <- modelfit.r
     }
   }

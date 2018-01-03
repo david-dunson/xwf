@@ -4,13 +4,15 @@
 \alias{xwfGridsearch}
 \title{Adaptive grid search}
 \usage{
-xwfGridsearch(y, xx, t, n.i, psi.list = default_psi(), F, z = NULL,
-  iter = 3, rel.shift = 0.001, progressbar = TRUE)
+xwfGridsearch(y, xx, t, n.i, psi.list = default_psi(), F = NULL, z = NULL,
+  iter = 3, w = function(t, i, b, left) ifelse(left, min(1, (1 -
+  F(xx[[i]](t)))/(1 - b)), min(1, F(xx[[i]](t))/b)), rel.shift = 0.001,
+  progressbar = TRUE)
 }
 \arguments{
 \item{y}{Vector with binary outcomes data}
 
-\item{xx}{List of function for which to compute the XWFs}
+\item{xx}{List of functions for which to compute the XWFs}
 
 \item{t}{Matrix containing the times at which the functions xx were measured: Element (i,j) contains the time of the j-th measurement of the i-th function.}
 
@@ -18,11 +20,13 @@ xwfGridsearch(y, xx, t, n.i, psi.list = default_psi(), F, z = NULL,
 
 \item{psi.list}{List of predefined local features which are functions of a function (first argument) and a measurement time (second argument)}
 
-\item{F}{CDF of the values of the functions xx}
+\item{F}{CDF of the values of the functions xx. Ignored if weighting function w is not the default.}
 
 \item{z}{Optional matrix with covariates to be included as linear predictors in the generalized additive model}
 
 \item{iter}{Number of levels in the adaptive grid search. The resolution in b obtained is 2^{-1-iter}.}
+
+\item{w}{Weighting function. The default is the one used in the original paper. See the default for what the roles of its 3 arguments are.}
 
 \item{rel.shift}{Optional relative reduction of the integration range to avoid instabilities at the end of the integration ranges. Set to 0 if no such correction is desired.}
 
@@ -89,10 +93,11 @@ psi <- list(
   function(x, t) abs(x(t)-x(t-1))
 )
 
-XWFresult <- xwfGridsearch(y = y, xx = xx, t = t, n.i = n.i, psi.list = psi, F = F)
+XWFresult <- xwfGridsearch(y = y, xx = xx, t = t, n.i = n.i, psi.list = psi, F = F, z = z)
 
 summary(XWFresult$GAMobject)
 XWFresult$b.left
 XWFresult$b.right
+
 
 }
