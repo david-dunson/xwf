@@ -177,7 +177,7 @@ for(s in 1:iter) {
     )
     score.r <- modelfit.l$gcv.ubre
     
-    temp <- which.max(c(score.l, score.r, score))
+    temp <- which.min(c(score.l, score.r, score))
     
     if(temp == 1) {
       left[pp] <- left[pp] - grid.width/2
@@ -215,7 +215,7 @@ for(s in 1:iter) {
     )
     score.r <- modelfit.r$gcv.ubre
     
-    temp <- which.max(c(score.l, score.r, score))
+    temp <- which.min(c(score.l, score.r, score))
     
     if(temp == 1) {
       right[pp] <- right[pp] - grid.width/2
